@@ -1,7 +1,7 @@
 import streamlit as st
 from utils import get_themes
 
-st.title("Business Unit Analysis")
+st.title("Department Analysis")
 
 if "df" not in st.session_state:
     st.warning("Upload data in Overview first.")
@@ -15,12 +15,12 @@ themes = get_themes()
 # -------------------------
 # FILTER
 # -------------------------
-selected_bu = st.selectbox(
-    "Select Business Unit",
-    sorted(df["Business Unit"].dropna().unique())
+selected_dept = st.selectbox(
+    "Select Department",
+    sorted(df["Function Department"].dropna().unique())
 )
 
-filtered_df = df[df["Business Unit"] == selected_bu]
+filtered_df = df[df["Function Department"] == selected_dept]
 
 # -------------------------
 # THEME SCORES
@@ -31,7 +31,7 @@ theme_scores = {
     if all(col in filtered_df.columns for col in cols)
 }
 
-st.subheader(f"Theme Breakdown - {selected_bu.title()}")
+st.subheader(f"Theme Breakdown - {selected_dept.title()}")
 st.bar_chart(theme_scores)
 
 # -------------------------
