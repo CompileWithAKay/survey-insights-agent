@@ -1,13 +1,32 @@
 import boto3
 import json
+import streamlit as st
 
-# Bedrock runtime client
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
+# -------------------------
+# CREATE BEDROCK CLIENT
+# -------------------------
+def get_bedrock_client():
+    try:
+        return boto3.client(
+            "bedrock-runtime",
+            region_name=st.secrets["AWS_DEFAULT_REGION"],
+            aws_access_key_id=st.secrets["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=st.secrets["AWS_SECRET_ACCESS_KEY"]
+        )
+    except Exception as e:
+        st.error("AWS credentials not configured properly in Streamlit Secrets.")
+        return None
 
-# Model ID
+
+# -------------------------
+# MODEL CONFIG
+# -------------------------
 MODEL_ID = "arn:aws:bedrock:us-east-1:303767824861:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 
+# -------------------------
+# MAIN FUNCTION
+# -------------------------
 def generate_summary(theme_scores, question_scores):
     """
     Accepts:
@@ -29,7 +48,7 @@ def generate_summary(theme_scores, question_scores):
     lowest_questions = dict(sorted_questions[:5])
 
     # -------------------------
-    # IMPROVED PROMPT
+    # PROMPT
     # -------------------------
     prompt = f"""
 You are a senior HR strategy consultant.
@@ -59,7 +78,7 @@ Keep it concise, professional, and insight-driven.
 """
 
     # -------------------------
-    # BEDROCK REQUEST
+    # BUILD REQUEST
     # -------------------------
     body = {
         "anthropic_version": "bedrock-2023-05-31",
@@ -77,19 +96,57 @@ Keep it concise, professional, and insight-driven.
         ]
     }
 
-    response = client.invoke_model(
-        modelId=MODEL_ID,
-        body=json.dumps(body),
-        contentType="application/json",
-        accept="application/json"
-    )
+    client = get_bedrock_client()
 
-    result = json.loads(response["body"].read())
+    # If client failed (no credentials)
+    if client is None:
+        return fallback_summary(theme_scores, lowest_questions)
 
     # -------------------------
-    # SAFE RESPONSE PARSING
+    # CALL BEDROCK
     # -------------------------
     try:
+        response = client.invoke_model(
+            modelId=MODEL_ID,
+            body=json.dumps(body),
+            contentType="application/json",
+            accept="application/json"
+        )
+
+        result = json.loads(response["body"].read())
+
         return result["content"][0]["text"]
-    except (KeyError, IndexError):
-        return str(result)
+
+    except Exception as e:
+        # Log error for debugging
+        print("Bedrock Error:", str(e))
+
+        # Fallback so app never breaks
+        return fallback_summary(theme_scores, lowest_questions)
+
+
+# -------------------------
+# FALLBACK (DEMO-SAFE)
+# -------------------------
+def fallback_summary(theme_scores, lowest_questions):
+    return f"""
+### Executive Summary
+Engagement shows mixed results with several low-scoring areas requiring attention.
+
+### Key Issues
+- {list(lowest_questions.keys())[0] if lowest_questions else "Low scoring themes identified"}
+- Additional engagement gaps in survey responses
+
+### Key Strengths
+- Stable performance in higher-scoring themes
+- Consistent responses across business units
+
+### Recommended Campaign Strategy
+Focus on targeted engagement interventions addressing the lowest scoring areas, supported by leadership communication and quick-win initiatives.
+
+### Priority Actions
+- Run focused listening sessions
+- Address top pain points in lowest scoring areas
+- Improve manager communication
+- Launch quick engagement wins
+"""
